@@ -1,0 +1,1470 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Tadeo: El Fantasma 3D</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Bangers&family=Fredoka:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        /* Estética tipo cómic / arcade 3D */
+        body {
+            font-family: 'Fredoka', sans-serif;
+            user-select: none;
+            -webkit-user-select: none;
+            overflow-x: hidden;
+            background: radial-gradient(circle at top, #31105f 0%, #111827 65%, #090d16 100%);
+        }
+
+        .font-comic {
+            font-family: 'Bangers', cursive;
+            letter-spacing: 1.5px;
+        }
+
+        .comic-panel {
+            border: 3px solid #09090b;
+            box-shadow: 5px 5px 0px #09090b;
+        }
+
+        .comic-panel-sm {
+            border: 2.5px solid #09090b;
+            box-shadow: 3px 3px 0px #09090b;
+        }
+
+        .comic-btn {
+            border: 2.5px solid #09090b;
+            box-shadow: 0px 4px 0px #09090b;
+            transition: transform 0.07s ease, box-shadow 0.07s ease, background-color 0.15s ease;
+        }
+
+        .comic-btn:hover {
+            filter: brightness(1.05);
+        }
+
+        .comic-btn:active {
+            transform: translateY(3px);
+            box-shadow: 0px 1px 0px #09090b;
+        }
+
+        .tool-active {
+            outline: 3px solid #facc15;
+            transform: translateY(-2px);
+            box-shadow: 0px 6px 0px #09090b;
+        }
+
+        /* Globos de diálogo estilo cómic */
+        .bubble-pop {
+            animation: bubblePop 0.22s cubic-bezier(0.18, 0.89, 0.32, 1.28);
+        }
+
+        @keyframes bubblePop {
+            0% { transform: scale(0.55) rotate(-3deg); opacity: 0.2; }
+            100% { transform: scale(1) rotate(0deg); opacity: 1; }
+        }
+
+        @keyframes stageShake {
+            0%, 100% { transform: translate(0, 0) rotate(0deg); }
+            20% { transform: translate(-6px, 4px) rotate(-0.6deg); }
+            40% { transform: translate(6px, -4px) rotate(0.6deg); }
+            60% { transform: translate(-4px, -3px) rotate(-0.4deg); }
+            80% { transform: translate(4px, 3px) rotate(0.4deg); }
+        }
+
+        .shake-light {
+            animation: stageShake 0.22s ease-in-out;
+        }
+
+        #three-container {
+            position: relative;
+            width: 100%;
+            height: 100%;
+            min-height: 390px;
+            cursor: crosshair;
+            touch-action: none;
+        }
+
+        #three-container canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col justify-between p-2 sm:p-4 text-slate-900">
+
+    <!-- ENCABEZADO Y CONTADORES ILIMITADOS -->
+    <header class="w-full max-w-6xl mx-auto bg-amber-400 comic-panel rounded-2xl p-3 sm:px-5 mb-2.5 flex flex-wrap items-center justify-between gap-2.5 z-20">
+        <div class="flex items-center gap-3">
+            <div class="bg-purple-700 text-white w-11 h-11 sm:w-12 sm:h-12 rounded-xl comic-panel-sm flex items-center justify-center text-2xl sm:text-3xl shrink-0">
+                👻
+            </div>
+            <div>
+                <h1 class="font-comic text-2xl sm:text-4xl text-slate-950 leading-none">
+                    TADEO: EL FANTASMA 3D
+                </h1>
+                <p class="text-xs sm:text-sm font-bold text-amber-950">
+                    ¡Golpea o dispara sin límite! Arrastra la escena para rotar la cámara 3D.
+                </p>
+            </div>
+        </div>
+
+        <div class="flex flex-wrap items-center gap-2 sm:gap-3 w-full sm:w-auto justify-between sm:justify-end">
+            <div class="bg-white px-3 py-1 rounded-xl comic-panel-sm text-center min-w-[96px]">
+                <span class="block text-[10px] font-extrabold uppercase text-slate-500">Impactos</span>
+                <span id="hits-counter" class="font-comic text-2xl sm:text-3xl text-purple-700 leading-none">0</span>
+            </div>
+
+            <div class="bg-white px-3 py-1 rounded-xl comic-panel-sm text-center min-w-[108px]">
+                <span class="block text-[10px] font-extrabold uppercase text-slate-500">Puntos Burla</span>
+                <span id="score-counter" class="font-comic text-2xl sm:text-3xl text-red-600 leading-none">0</span>
+            </div>
+
+            <div class="bg-white px-2.5 py-1 rounded-xl comic-panel-sm text-center min-w-[82px]">
+                <span class="block text-[10px] font-extrabold uppercase text-slate-500">Racha</span>
+                <span id="combo-counter" class="font-comic text-2xl sm:text-3xl text-amber-600 leading-none">x0</span>
+            </div>
+
+            <!-- Controles de cámara 3D rápidos -->
+            <div class="flex items-center gap-1.5">
+                <button onclick="zoomCamera(-1.6)" class="comic-btn bg-white hover:bg-slate-100 px-2.5 py-1.5 rounded-xl font-bold text-sm" title="Acercar cámara">
+                    🔍+
+                </button>
+                <button onclick="zoomCamera(1.6)" class="comic-btn bg-white hover:bg-slate-100 px-2.5 py-1.5 rounded-xl font-bold text-sm" title="Alejar cámara">
+                    🔍-
+                </button>
+                <button onclick="resetCameraView()" class="comic-btn bg-indigo-200 hover:bg-indigo-300 px-2.5 py-1.5 rounded-xl font-bold text-xs sm:text-sm" title="Centrar vista">
+                    🎯 Vista
+                </button>
+                <button id="shake-toggle-btn" onclick="toggleShake()" class="comic-btn bg-emerald-300 hover:bg-emerald-400 px-2.5 py-1.5 rounded-xl font-bold text-xs sm:text-sm" title="Temblor de cámara">
+                    📳 On
+                </button>
+                <button id="mute-btn" onclick="toggleAudio()" class="comic-btn bg-cyan-300 hover:bg-cyan-400 px-2.5 py-1.5 rounded-xl text-base sm:text-lg" title="Activar o silenciar sonido">
+                    🔊
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- ARENA 3D PRINCIPAL Y PANEL DE DIÁLOGOS -->
+    <main id="arena-box" class="w-full max-w-6xl mx-auto flex-1 flex flex-col gap-2.5 z-10">
+        <!-- Globos de diálogo de los tres personajes: César, Tadeo y Josías -->
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-2">
+            <!-- César -->
+            <div id="cesar-bubble" class="bubble-pop bg-rose-50 comic-panel-sm rounded-2xl px-3.5 py-2 flex items-start gap-2.5">
+                <span class="bg-red-600 text-white font-comic text-sm px-2 py-0.5 rounded-lg border-2 border-black shrink-0 mt-0.5">
+                    CÉSAR
+                </span>
+                <p id="cesar-text" class="text-xs sm:text-sm font-bold text-slate-900 leading-snug">
+                    "¡Mírenlo! ¡Eres un fantasma, Tadeo! ¡Nadie te ve!"
+                </p>
+            </div>
+
+            <!-- Tadeo asustado diciendo que es un fantasma -->
+            <div id="tadeo-bubble" class="bubble-pop bg-purple-100 comic-panel-sm rounded-2xl px-3.5 py-2 flex items-start gap-2.5">
+                <span class="bg-purple-700 text-white font-comic text-sm px-2 py-0.5 rounded-lg border-2 border-black shrink-0 mt-0.5">
+                    TADEO 👻
+                </span>
+                <p id="tadeo-text" class="text-xs sm:text-sm font-bold text-purple-950 leading-snug">
+                    "¡Ay, no me peguen! ¡Soy un fantasma asustado!"
+                </p>
+            </div>
+
+            <!-- Josías -->
+            <div id="josias-bubble" class="bubble-pop bg-amber-50 comic-panel-sm rounded-2xl px-3.5 py-2 flex items-start gap-2.5">
+                <span class="bg-amber-500 text-slate-950 font-comic text-sm px-2 py-0.5 rounded-lg border-2 border-black shrink-0 mt-0.5">
+                    JOSÍAS
+                </span>
+                <p id="josias-text" class="text-xs sm:text-sm font-bold text-slate-900 leading-snug">
+                    "¡Qué risa das, Tadeo! ¡Pareces un fantasma de trapo!"
+                </p>
+            </div>
+        </div>
+
+        <!-- Contenedor del Escenario 3D Three.js -->
+        <div class="relative flex-1 w-full bg-slate-900 comic-panel rounded-3xl overflow-hidden min-h-[380px] sm:min-h-[450px]">
+            <div id="three-container"></div>
+
+            <!-- Indicador superior izquierdo en el visor 3D -->
+            <div class="absolute top-3 left-3 pointer-events-none flex flex-wrap items-center gap-2">
+                <div class="bg-slate-950/80 text-amber-300 border-2 border-amber-400/70 px-3 py-1 rounded-xl text-xs font-bold">
+                    Arma / Golpe activo: <span id="active-tool-label" class="text-white uppercase">Bofetada</span>
+                </div>
+                <div class="bg-slate-950/75 text-cyan-200 border border-cyan-400/50 px-2.5 py-1 rounded-xl text-[11px] font-semibold hidden sm:block">
+                    Clic en Tadeo para atacar • Rueda o arrastre para orbitar
+                </div>
+            </div>
+
+            <!-- Botón de ráfaga rápida de simulación -->
+            <div class="absolute bottom-3 right-3 flex items-center gap-2">
+                <button onclick="rapidSimBurst()" class="comic-btn bg-fuchsia-500 hover:bg-fuchsia-400 text-white font-comic text-sm sm:text-base px-3.5 py-1.5 rounded-xl">
+                    ⚡ RÁFAGA CÓMICA x5
+                </button>
+            </div>
+        </div>
+    </main>
+
+    <!-- SELECTOR DE GOLPES CÓMICOS Y ARMAS DE SIMULACIÓN -->
+    <footer class="w-full max-w-6xl mx-auto mt-2.5 bg-slate-900/95 comic-panel rounded-2xl p-2.5 sm:p-3.5 z-20 space-y-2.5">
+        <!-- Fila 1: Golpes y maltrato cómico -->
+        <div>
+            <div class="text-[11px] font-extrabold uppercase tracking-wider text-amber-300 mb-1.5 px-1">
+                Golpes y Maltrato Cómico (Ilimitados)
+            </div>
+            <div class="grid grid-cols-3 sm:grid-cols-6 gap-2">
+                <button data-tool="slap" onclick="selectAndFire('slap')" class="tool-btn tool-active comic-btn bg-red-500 text-white rounded-xl py-2 px-1.5 flex flex-col items-center">
+                    <span class="text-xl sm:text-2xl">👋</span>
+                    <span class="font-comic text-sm sm:text-base leading-tight">Bofetada</span>
+                </button>
+                <button data-tool="punch" onclick="selectAndFire('punch')" class="tool-btn comic-btn bg-rose-600 text-white rounded-xl py-2 px-1.5 flex flex-col items-center">
+                    <span class="text-xl sm:text-2xl">🥊</span>
+                    <span class="font-comic text-sm sm:text-base leading-tight">Puñetazo</span>
+                </button>
+                <button data-tool="foam_bonk" onclick="selectAndFire('foam_bonk')" class="tool-btn comic-btn bg-orange-500 text-white rounded-xl py-2 px-1.5 flex flex-col items-center">
+                    <span class="text-xl sm:text-2xl">🔨</span>
+                    <span class="font-comic text-sm sm:text-base leading-tight">Mazazo Goma</span>
+                </button>
+                <button data-tool="pie" onclick="selectAndFire('pie')" class="tool-btn comic-btn bg-pink-500 text-white rounded-xl py-2 px-1.5 flex flex-col items-center">
+                    <span class="text-xl sm:text-2xl">🥧</span>
+                    <span class="font-comic text-sm sm:text-base leading-tight">Tartazo</span>
+                </button>
+                <button data-tool="toy_hammer" onclick="selectAndFire('toy_hammer')" class="tool-btn comic-btn bg-yellow-400 text-slate-950 rounded-xl py-2 px-1.5 flex flex-col items-center">
+                    <span class="text-xl sm:text-2xl">🧸</span>
+                    <span class="font-comic text-sm sm:text-base leading-tight">Martillo Juguete</span>
+                </button>
+                <button data-tool="stomp_shake" onclick="selectAndFire('stomp_shake')" class="tool-btn comic-btn bg-purple-600 text-white rounded-xl py-2 px-1.5 flex flex-col items-center">
+                    <span class="text-xl sm:text-2xl">🌪️</span>
+                    <span class="font-comic text-sm sm:text-base leading-tight">Sacudida</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- Fila 2: Armas de simulación (Paintball/Airsoft, Láser de juguete, Lanzadardos) + Burlas -->
+        <div>
+            <div class="text-[11px] font-extrabold uppercase tracking-wider text-cyan-300 mb-1.5 px-1">
+                Armas de Simulación (Paintball / Airsoft, Láser de Juguete, Lanzadardos) y Burlas
+            </div>
+            <div class="grid grid-cols-2 sm:grid-cols-5 gap-2">
+                <button data-tool="paintball" onclick="selectAndFire('paintball')" class="tool-btn comic-btn bg-lime-400 text-slate-950 rounded-xl py-2 px-2 flex items-center justify-center gap-2">
+                    <span class="text-xl sm:text-2xl">🔫</span>
+                    <div class="text-left leading-tight">
+                        <div class="font-comic text-sm sm:text-base">Pistola Paintball</div>
+                        <div class="text-[10px] font-bold opacity-85">Sim. Airsoft/Pintura</div>
+                    </div>
+                </button>
+                <button data-tool="laser_toy" onclick="selectAndFire('laser_toy')" class="tool-btn comic-btn bg-cyan-400 text-slate-950 rounded-xl py-2 px-2 flex items-center justify-center gap-2">
+                    <span class="text-xl sm:text-2xl">⚡</span>
+                    <div class="text-left leading-tight">
+                        <div class="font-comic text-sm sm:text-base">Rifle Láser</div>
+                        <div class="text-[10px] font-bold opacity-85">Sim. Luz de Juguete</div>
+                    </div>
+                </button>
+                <button data-tool="dart_launcher" onclick="selectAndFire('dart_launcher')" class="tool-btn comic-btn bg-sky-400 text-slate-950 rounded-xl py-2 px-2 flex items-center justify-center gap-2">
+                    <span class="text-xl sm:text-2xl">🎯</span>
+                    <div class="text-left leading-tight">
+                        <div class="font-comic text-sm sm:text-base">Lanzadardos</div>
+                        <div class="text-[10px] font-bold opacity-85">Espuma y Confeti</div>
+                    </div>
+                </button>
+                <button onclick="triggerTaunt('cesar')" class="comic-btn bg-rose-200 hover:bg-rose-100 text-slate-950 rounded-xl py-2 px-2 flex items-center justify-center gap-1.5">
+                    <span class="text-xl">🗣️</span>
+                    <span class="font-comic text-sm sm:text-base">Burlarse (César)</span>
+                </button>
+                <button onclick="triggerTaunt('josias')" class="comic-btn bg-amber-200 hover:bg-amber-100 text-slate-950 rounded-xl py-2 px-2 flex items-center justify-center gap-1.5">
+                    <span class="text-xl">😜</span>
+                    <span class="font-comic text-sm sm:text-base">Burlarse (Josías)</span>
+                </button>
+            </div>
+        </div>
+    </footer>
+
+    <script>
+        /**
+         * ========================================================================
+         * 1. SINTETIZADOR DE AUDIO (WEB AUDIO API) - SIN ARCHIVOS EXTERNOS
+         * ========================================================================
+         */
+        let audioCtx = null;
+        let isMuted = false;
+        let cameraShakeEnabled = true;
+
+        function ensureAudio() {
+            if (!audioCtx) {
+                const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+                if (AudioContextClass) {
+                    audioCtx = new AudioContextClass();
+                }
+            }
+            if (audioCtx && audioCtx.state === 'suspended') {
+                audioCtx.resume().catch(() => {});
+            }
+        }
+
+        function toggleAudio() {
+            ensureAudio();
+            isMuted = !isMuted;
+            document.getElementById('mute-btn').textContent = isMuted ? '🔇' : '🔊';
+        }
+
+        function toggleShake() {
+            cameraShakeEnabled = !cameraShakeEnabled;
+            const btn = document.getElementById('shake-toggle-btn');
+            btn.textContent = cameraShakeEnabled ? '📳 On' : '📳 Off';
+            btn.className = cameraShakeEnabled
+                ? 'comic-btn bg-emerald-300 hover:bg-emerald-400 px-2.5 py-1.5 rounded-xl font-bold text-xs sm:text-sm'
+                : 'comic-btn bg-slate-300 hover:bg-slate-400 px-2.5 py-1.5 rounded-xl font-bold text-xs sm:text-sm';
+        }
+
+        function playSimSound(kind) {
+            if (isMuted) return;
+            ensureAudio();
+            if (!audioCtx) return;
+
+            try {
+                const now = audioCtx.currentTime;
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+
+                if (kind === 'slap' || kind === 'punch') {
+                    osc.type = kind === 'slap' ? 'triangle' : 'sawtooth';
+                    osc.frequency.setValueAtTime(kind === 'slap' ? 540 : 210, now);
+                    osc.frequency.exponentialRampToValueAtTime(75, now + 0.14);
+                    gain.gain.setValueAtTime(0.28, now);
+                    gain.gain.exponentialRampToValueAtTime(0.005, now + 0.14);
+                    osc.start(now);
+                    osc.stop(now + 0.14);
+                } else if (kind === 'foam_bonk' || kind === 'toy_hammer' || kind === 'stomp_shake') {
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(190, now);
+                    osc.frequency.exponentialRampToValueAtTime(520, now + 0.08);
+                    osc.frequency.exponentialRampToValueAtTime(120, now + 0.22);
+                    gain.gain.setValueAtTime(0.32, now);
+                    gain.gain.exponentialRampToValueAtTime(0.005, now + 0.22);
+                    osc.start(now);
+                    osc.stop(now + 0.22);
+                } else if (kind === 'pie') {
+                    osc.type = 'sawtooth';
+                    osc.frequency.setValueAtTime(240, now);
+                    osc.frequency.linearRampToValueAtTime(70, now + 0.2);
+                    gain.gain.setValueAtTime(0.24, now);
+                    gain.gain.exponentialRampToValueAtTime(0.005, now + 0.2);
+                    osc.start(now);
+                    osc.stop(now + 0.2);
+                } else if (kind === 'paintball') {
+                    // Sonido simulado de marcadora de paintball / airsoft
+                    osc.type = 'square';
+                    osc.frequency.setValueAtTime(680, now);
+                    osc.frequency.exponentialRampToValueAtTime(130, now + 0.09);
+                    gain.gain.setValueAtTime(0.22, now);
+                    gain.gain.exponentialRampToValueAtTime(0.005, now + 0.09);
+                    osc.start(now);
+                    osc.stop(now + 0.09);
+                } else if (kind === 'laser_toy') {
+                    // Sonido simulado de rifle láser de juguete ("pew")
+                    osc.type = 'sawtooth';
+                    osc.frequency.setValueAtTime(1150, now);
+                    osc.frequency.exponentialRampToValueAtTime(210, now + 0.16);
+                    gain.gain.setValueAtTime(0.2, now);
+                    gain.gain.exponentialRampToValueAtTime(0.005, now + 0.16);
+                    osc.start(now);
+                    osc.stop(now + 0.16);
+                } else if (kind === 'dart_launcher') {
+                    // Pop de lanzadardos de espuma
+                    osc.type = 'triangle';
+                    osc.frequency.setValueAtTime(280, now);
+                    osc.frequency.exponentialRampToValueAtTime(760, now + 0.08);
+                    gain.gain.setValueAtTime(0.22, now);
+                    gain.gain.exponentialRampToValueAtTime(0.005, now + 0.08);
+                    osc.start(now);
+                    osc.stop(now + 0.08);
+                } else if (kind === 'taunt') {
+                    const freqs = [330, 415, 290, 440];
+                    freqs.forEach((f, idx) => {
+                        const o = audioCtx.createOscillator();
+                        const g = audioCtx.createGain();
+                        o.type = 'square';
+                        o.frequency.setValueAtTime(f, now + idx * 0.055);
+                        g.gain.setValueAtTime(0.08, now + idx * 0.055);
+                        g.gain.exponentialRampToValueAtTime(0.003, now + (idx + 1) * 0.055);
+                        o.connect(g);
+                        g.connect(audioCtx.destination);
+                        o.start(now + idx * 0.055);
+                        o.stop(now + (idx + 1) * 0.055);
+                    });
+                }
+            } catch (err) {
+                // Evitar fallos si el navegador bloquea audio
+            }
+        }
+
+        /**
+         * ========================================================================
+         * 2. FRASES DE TADEO (ASUSTADO / FANTASMA) Y BURLAS DE CÉSAR Y JOSÍAS
+         * ========================================================================
+         */
+        const tadeoGhostLines = [
+            "¡Auuuch! ¡Soy un fantasma!",
+            "¡Otra vez me pegan, soy un fantasma!",
+            "¡Nadie me ve, soy un fantasma!",
+            "¡Estoy transparentándome, soy un fantasma!",
+            "¡Qué susto me dan, soy un fantasma!",
+            "¡No me peguen tanto, soy un fantasma!",
+            "¡Hasta las bolitas me atraviesan, soy un fantasma!",
+            "¡Ay mamita, soy un fantasma asustado!"
+        ];
+
+        const cesarLines = [
+            "¡Mírenlo! ¡Eres un fantasma, Tadeo! ¡Nadie te ve!",
+            "¡Toma eso, fantasma! ¡Das pura risa en 3D!",
+            "¿Escuchan un lamento? ¡Es Tadeo el fantasma!",
+            "¡Ni tu sombra te respeta, fantasma Tadeo!",
+            "¡Eres tan transparente que se ve el gimnasio detrás de ti, fantasma!"
+        ];
+
+        const josiasLines = [
+            "¡Qué risa das, Tadeo! ¡Pareces un fantasma de trapo!",
+            "¡Sigue así, fantasma! ¡A ver si te asustas tú mismo!",
+            "¡César y yo ya vimos tu aura de fantasma, Tadeo!",
+            "¡Qué cara de susto traes, fantasma! ¡No haces nada!",
+            "¡Alguien póngale una sábana a Tadeo que ya es un fantasma!"
+        ];
+
+        const toolNames = {
+            slap: "Bofetada",
+            punch: "Puñetazo",
+            foam_bonk: "Mazazo de Gomaespuma",
+            pie: "Tartazo",
+            toy_hammer: "Martillo de Juguete",
+            stomp_shake: "Sacudida Cómica",
+            paintball: "Pistola Paintball (Sim.)",
+            laser_toy: "Rifle Láser de Juguete",
+            dart_launcher: "Lanzadardos de Espuma"
+        };
+
+        let currentTool = 'slap';
+        let hits = 0;
+        let score = 0;
+        let combo = 0;
+        let comboTimeout = null;
+
+        function setBubbleText(boxId, textId, phrase) {
+            const box = document.getElementById(boxId);
+            const textEl = document.getElementById(textId);
+            if (!box || !textEl) return;
+            textEl.textContent = `"${phrase}"`;
+            box.classList.remove('bubble-pop');
+            void box.offsetWidth;
+            box.classList.add('bubble-pop');
+        }
+
+        function sayTadeoGhostPhrase(customPrefix = "") {
+            const base = tadeoGhostLines[Math.floor(Math.random() * tadeoGhostLines.length)];
+            const msg = customPrefix ? `${customPrefix} ${base}` : base;
+            setBubbleText('tadeo-bubble', 'tadeo-text', msg);
+            spawnFloatingSprite3D(msg, '#e9d5ff', tadeoRig.root.position.x, tadeoRig.root.position.y + 3.4, tadeoRig.root.position.z);
+        }
+
+        function sayCesarPhrase() {
+            const msg = cesarLines[Math.floor(Math.random() * cesarLines.length)];
+            setBubbleText('cesar-bubble', 'cesar-text', msg);
+            cesarRig.tauntTimer = 1.1;
+        }
+
+        function sayJosiasPhrase() {
+            const msg = josiasLines[Math.floor(Math.random() * josiasLines.length)];
+            setBubbleText('josias-bubble', 'josias-text', msg);
+            josiasRig.tauntTimer = 1.1;
+        }
+
+        function triggerTaunt(who) {
+            ensureAudio();
+            playSimSound('taunt');
+            if (who === 'cesar') {
+                sayCesarPhrase();
+                if (Math.random() > 0.45) sayJosiasPhrase();
+            } else {
+                sayJosiasPhrase();
+                if (Math.random() > 0.45) sayCesarPhrase();
+            }
+            score += 15;
+            updateStatsUI();
+            sayTadeoGhostPhrase("¡Déjenme en paz!");
+        }
+
+        // Burlas automáticas periódicas de César y Josías
+        setInterval(() => {
+            if (Math.random() > 0.5) {
+                sayCesarPhrase();
+            } else {
+                sayJosiasPhrase();
+            }
+        }, 4200);
+
+        /**
+         * ========================================================================
+         * 3. ESCENA 3D CON THREE.JS, PERSONAJES ARTICULADOS Y FÍSICAS
+         * ========================================================================
+         */
+        const container = document.getElementById('three-container');
+        let scene, camera, renderer;
+        let raycaster, pointerNDC;
+        let tadeoHitMeshes = [];
+
+        // Estado de cámara orbital suave
+        const camOrbit = {
+            theta: 0.0,
+            phi: 1.24,
+            radius: 11.5,
+            target: new THREE.Vector3(0, 1.9, 0),
+            isDragging: false,
+            prevX: 0,
+            prevY: 0,
+            downX: 0,
+            downY: 0,
+            shakeIntensity: 0
+        };
+
+        // Rigs 3D de personajes
+        const tadeoRig = {
+            root: new THREE.Group(),
+            bodyGroup: new THREE.Group(),
+            headGroup: new THREE.Group(),
+            leftArm: new THREE.Group(),
+            rightArm: new THREE.Group(),
+            leftLeg: new THREE.Group(),
+            rightLeg: new THREE.Group(),
+            mouthMesh: null,
+            pieSplatter: null,
+            pos: new THREE.Vector3(0, 0, 0),
+            vel: new THREE.Vector3(0, 0, 0),
+            rotVel: new THREE.Vector3(0, 0, 0),
+            squash: 1.0,
+            hurtTimer: 0,
+            pieTimer: 0
+        };
+
+        const cesarRig = {
+            root: new THREE.Group(),
+            armLeft: new THREE.Group(),
+            tauntTimer: 0
+        };
+
+        const josiasRig = {
+            root: new THREE.Group(),
+            armRight: new THREE.Group(),
+            tauntTimer: 0
+        };
+
+        const projectiles3D = [];
+        const particles3D = [];
+        const floatingSprites = [];
+
+        function initThreeScene() {
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color('#1a1033');
+            scene.fog = new THREE.Fog('#1a1033', 20, 46);
+
+            const w = container.clientWidth || 800;
+            const h = container.clientHeight || 450;
+
+            camera = new THREE.PerspectiveCamera(48, w / h, 0.1, 100);
+            updateCameraTransform();
+
+            renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
+            renderer.setSize(w, h);
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+            renderer.shadowMap.enabled = true;
+            renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+            container.appendChild(renderer.domElement);
+
+            raycaster = new THREE.Raycaster();
+            pointerNDC = new THREE.Vector2();
+
+            setupLightsAndArena();
+            buildTadeo3D();
+            buildCesar3D();
+            buildJosias3D();
+            bindEvents();
+        }
+
+        function setupLightsAndArena() {
+            // Luz ambiental suave + hemisférica
+            const hemi = new THREE.HemisphereLight('#c4b5fd', '#1e293b', 0.95);
+            hemi.position.set(0, 15, 0);
+            scene.add(hemi);
+
+            // Luz direccional principal con sombras suaves
+            const dirLight = new THREE.DirectionalLight('#fffbeb', 1.35);
+            dirLight.position.set(7, 13, 9);
+            dirLight.castShadow = true;
+            dirLight.shadow.mapSize.width = 1024;
+            dirLight.shadow.mapSize.height = 1024;
+            dirLight.shadow.camera.near = 2;
+            dirLight.shadow.camera.far = 35;
+            const d = 11;
+            dirLight.shadow.camera.left = -d;
+            dirLight.shadow.camera.right = d;
+            dirLight.shadow.camera.top = d;
+            dirLight.shadow.camera.bottom = -d;
+            dirLight.shadow.bias = -0.0005;
+            scene.add(dirLight);
+
+            // Luz de acento lateral
+            const rimLight = new THREE.PointLight('#38bdf8', 0.9, 25);
+            rimLight.position.set(-7, 5, -5);
+            scene.add(rimLight);
+
+            // Suelo de arena/gimnasio con cuadrícula y sombra de contacto
+            const floorGeo = new THREE.CircleGeometry(14, 48);
+            const floorMat = new THREE.MeshStandardMaterial({
+                color: '#334155',
+                roughness: 0.72,
+                metalness: 0.12
+            });
+            const floor = new THREE.Mesh(floorGeo, floorMat);
+            floor.rotation.x = -Math.PI / 2;
+            floor.receiveShadow = true;
+            scene.add(floor);
+
+            // Círculo central de arena
+            const ringGeo = new THREE.RingGeometry(4.4, 4.65, 48);
+            const ringMat = new THREE.MeshBasicMaterial({ color: '#facc15', side: THREE.DoubleSide });
+            const ring = new THREE.Mesh(ringGeo, ringMat);
+            ring.rotation.x = -Math.PI / 2;
+            ring.position.y = 0.015;
+            scene.add(ring);
+
+            const grid = new THREE.GridHelper(22, 22, '#64748b', '#1e293b');
+            grid.position.y = 0.01;
+            scene.add(grid);
+
+            // Paredes estilizadas y pilares de fondo
+            const wallMat = new THREE.MeshStandardMaterial({
+                color: '#1e1b4b',
+                roughness: 0.8,
+                metalness: 0.1
+            });
+            const trimMat = new THREE.MeshStandardMaterial({
+                color: '#7c3aed',
+                roughness: 0.4,
+                metalness: 0.3
+            });
+
+            const backWall = new THREE.Mesh(new THREE.BoxGeometry(28, 9, 0.8), wallMat);
+            backWall.position.set(0, 4.5, -10.5);
+            backWall.receiveShadow = true;
+            scene.add(backWall);
+
+            const trimBar = new THREE.Mesh(new THREE.BoxGeometry(28, 0.45, 0.95), trimMat);
+            trimBar.position.set(0, 2.2, -10.4);
+            scene.add(trimBar);
+
+            const pillarPositions = [
+                [-9.5, 4.2, -8.5],
+                [9.5, 4.2, -8.5],
+                [-11.5, 4.2, -1.5],
+                [11.5, 4.2, -1.5]
+            ];
+            pillarPositions.forEach(([px, py, pz]) => {
+                const pillar = new THREE.Mesh(new THREE.CylinderGeometry(0.75, 0.85, 8.4, 16), wallMat);
+                pillar.position.set(px, py, pz);
+                pillar.castShadow = true;
+                pillar.receiveShadow = true;
+                scene.add(pillar);
+
+                const cap = new THREE.Mesh(new THREE.CylinderGeometry(0.9, 0.9, 0.35, 16), trimMat);
+                cap.position.set(px, 8.3, pz);
+                scene.add(cap);
+            });
+        }
+
+        function createLimb(w, h, d, color, yOffset) {
+            const pivot = new THREE.Group();
+            const mat = new THREE.MeshStandardMaterial({ color, roughness: 0.55 });
+            const mesh = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat);
+            mesh.position.y = yOffset;
+            mesh.castShadow = true;
+            mesh.receiveShadow = true;
+            pivot.add(mesh);
+            return { pivot, mesh };
+        }
+
+        /**
+         * Construye a Tadeo en 3D con expresión constante de susto:
+         * ojos muy abiertos, cejas alzadas y boca abierta/temblorosa.
+         */
+        function buildTadeo3D() {
+            tadeoHitMeshes = [];
+
+            const skinMat = new THREE.MeshStandardMaterial({ color: '#fed7aa', roughness: 0.6 });
+            const shirtMat = new THREE.MeshStandardMaterial({ color: '#facc15', roughness: 0.6 });
+            const pantsMat = new THREE.MeshStandardMaterial({ color: '#2563eb', roughness: 0.65 });
+            const shoeMat = new THREE.MeshStandardMaterial({ color: '#ef4444', roughness: 0.5 });
+
+            // Piernas articuladas
+            const lLeg = createLimb(0.42, 0.95, 0.44, '#2563eb', -0.47);
+            lLeg.pivot.position.set(-0.34, 0.98, 0);
+            const lShoe = new THREE.Mesh(new THREE.BoxGeometry(0.48, 0.28, 0.72), shoeMat);
+            lShoe.position.set(0, -0.92, 0.12);
+            lShoe.castShadow = true;
+            lLeg.pivot.add(lShoe);
+            tadeoRig.leftLeg = lLeg.pivot;
+            tadeoRig.bodyGroup.add(lLeg.pivot);
+
+            const rLeg = createLimb(0.42, 0.95, 0.44, '#2563eb', -0.47);
+            rLeg.pivot.position.set(0.34, 0.98, 0);
+            const rShoe = new THREE.Mesh(new THREE.BoxGeometry(0.48, 0.28, 0.72), shoeMat);
+            rShoe.position.set(0, -0.92, 0.12);
+            rShoe.castShadow = true;
+            rLeg.pivot.add(rShoe);
+            tadeoRig.rightLeg = rLeg.pivot;
+            tadeoRig.bodyGroup.add(rLeg.pivot);
+
+            // Torso
+            const torso = new THREE.Mesh(new THREE.BoxGeometry(1.22, 1.32, 0.76), shirtMat);
+            torso.position.set(0, 1.62, 0);
+            torso.castShadow = true;
+            torso.receiveShadow = true;
+            tadeoRig.bodyGroup.add(torso);
+            tadeoHitMeshes.push(torso);
+
+            // Brazos articulados
+            const lArm = createLimb(0.34, 1.0, 0.34, '#facc15', -0.48);
+            lArm.pivot.position.set(-0.8, 2.15, 0);
+            const lHand = new THREE.Mesh(new THREE.SphereGeometry(0.24, 12, 12), skinMat);
+            lHand.position.set(0, -1.0, 0);
+            lHand.castShadow = true;
+            lArm.pivot.add(lHand);
+            tadeoRig.leftArm = lArm.pivot;
+            tadeoRig.bodyGroup.add(lArm.pivot);
+
+            const rArm = createLimb(0.34, 1.0, 0.34, '#facc15', -0.48);
+            rArm.pivot.position.set(0.8, 2.15, 0);
+            const rHand = new THREE.Mesh(new THREE.SphereGeometry(0.24, 12, 12), skinMat);
+            rHand.position.set(0, -1.0, 0);
+            rHand.castShadow = true;
+            rArm.pivot.add(rHand);
+            tadeoRig.rightArm = rArm.pivot;
+            tadeoRig.bodyGroup.add(rArm.pivot);
+
+            // Cabeza grande expresiva
+            tadeoRig.headGroup.position.set(0, 2.95, 0);
+            const headMesh = new THREE.Mesh(new THREE.SphereGeometry(0.76, 24, 24), skinMat);
+            headMesh.scale.set(1.05, 1.0, 0.98);
+            headMesh.castShadow = true;
+            headMesh.receiveShadow = true;
+            tadeoRig.headGroup.add(headMesh);
+            tadeoHitMeshes.push(headMesh);
+
+            // Mechones de pelo asustado
+            const hairMat = new THREE.MeshStandardMaterial({ color: '#78350f', roughness: 0.7 });
+            [-0.28, 0, 0.28].forEach((hx, idx) => {
+                const tuft = new THREE.Mesh(new THREE.ConeGeometry(0.16, 0.48, 8), hairMat);
+                tuft.position.set(hx, 0.88, idx === 1 ? 0.08 : -0.04);
+                tuft.rotation.z = -hx * 1.1;
+                tuft.castShadow = true;
+                tadeoRig.headGroup.add(tuft);
+            });
+
+            // Ojos muy abiertos de susto + pupilas pequeñas temblorosas + cejas levantadas
+            const eyeWhiteMat = new THREE.MeshBasicMaterial({ color: '#ffffff' });
+            const pupilMat = new THREE.MeshBasicMaterial({ color: '#09090b' });
+            const browMat = new THREE.MeshBasicMaterial({ color: '#451a03' });
+
+            [-0.28, 0.28].forEach((ex, side) => {
+                const eyeWhite = new THREE.Mesh(new THREE.SphereGeometry(0.22, 14, 14), eyeWhiteMat);
+                eyeWhite.position.set(ex, 0.14, 0.64);
+                tadeoRig.headGroup.add(eyeWhite);
+
+                const pupil = new THREE.Mesh(new THREE.SphereGeometry(0.075, 10, 10), pupilMat);
+                pupil.position.set(ex * 0.9, 0.15, 0.82);
+                tadeoRig.headGroup.add(pupil);
+
+                // Ceja alta de susto
+                const brow = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.06, 0.08), browMat);
+                brow.position.set(ex, 0.44, 0.68);
+                brow.rotation.z = side === 0 ? 0.22 : -0.22;
+                tadeoRig.headGroup.add(brow);
+            });
+
+            // Boca abierta de susto constante
+            const mouthMat = new THREE.MeshBasicMaterial({ color: '#7f1d1d' });
+            const mouth = new THREE.Mesh(new THREE.SphereGeometry(0.2, 14, 14), mouthMat);
+            mouth.scale.set(1.15, 1.35, 0.5);
+            mouth.position.set(0, -0.26, 0.68);
+            tadeoRig.headGroup.add(mouth);
+            tadeoRig.mouthMesh = mouth;
+
+            // Crema de tartazo opcional en la cara
+            const pieMat = new THREE.MeshStandardMaterial({ color: '#fff1f2', roughness: 0.4 });
+            const pieSplatter = new THREE.Mesh(new THREE.DodecahedronGeometry(0.45, 1), pieMat);
+            pieSplatter.position.set(0.05, -0.1, 0.72);
+            pieSplatter.visible = false;
+            tadeoRig.headGroup.add(pieSplatter);
+            tadeoRig.pieSplatter = pieSplatter;
+
+            tadeoRig.bodyGroup.add(tadeoRig.headGroup);
+            tadeoRig.root.add(tadeoRig.bodyGroup);
+            scene.add(tadeoRig.root);
+        }
+
+        /**
+         * Construye a César en 3D a la izquierda/frente con gafas oscuras y pose burlona.
+         */
+        function buildCesar3D() {
+            const skinMat = new THREE.MeshStandardMaterial({ color: '#fed7aa', roughness: 0.6 });
+            const jacketMat = new THREE.MeshStandardMaterial({ color: '#dc2626', roughness: 0.5 });
+            const pantsMat = new THREE.MeshStandardMaterial({ color: '#18181b', roughness: 0.7 });
+            const shadesMat = new THREE.MeshStandardMaterial({ color: '#09090b', roughness: 0.2, metalness: 0.5 });
+
+            cesarRig.root.position.set(-3.9, 0, 1.4);
+            cesarRig.root.rotation.y = 0.52;
+
+            // Piernas
+            const lLeg = new THREE.Mesh(new THREE.BoxGeometry(0.36, 0.9, 0.38), pantsMat);
+            lLeg.position.set(-0.28, 0.45, 0);
+            lLeg.castShadow = true;
+            const rLeg = new THREE.Mesh(new THREE.BoxGeometry(0.36, 0.9, 0.38), pantsMat);
+            rLeg.position.set(0.28, 0.45, 0);
+            rLeg.castShadow = true;
+            cesarRig.root.add(lLeg, rLeg);
+
+            // Torso
+            const torso = new THREE.Mesh(new THREE.BoxGeometry(1.06, 1.2, 0.66), jacketMat);
+            torso.position.set(0, 1.5, 0);
+            torso.castShadow = true;
+            cesarRig.root.add(torso);
+
+            // Brazo señalando burlonamente hacia Tadeo
+            const arm = createLimb(0.3, 0.88, 0.3, '#dc2626', -0.4);
+            arm.pivot.position.set(0.68, 1.98, 0.1);
+            arm.pivot.rotation.z = -1.15;
+            const hand = new THREE.Mesh(new THREE.SphereGeometry(0.2, 12, 12), skinMat);
+            hand.position.set(0, -0.86, 0);
+            arm.pivot.add(hand);
+            cesarRig.armLeft = arm.pivot;
+            cesarRig.root.add(arm.pivot);
+
+            // Cabeza + copete + gafas oscuras
+            const head = new THREE.Mesh(new THREE.SphereGeometry(0.64, 20, 20), skinMat);
+            head.position.set(0, 2.55, 0);
+            head.castShadow = true;
+            cesarRig.root.add(head);
+
+            const hair = new THREE.Mesh(new THREE.BoxGeometry(0.76, 0.34, 0.82), pantsMat);
+            hair.position.set(0, 3.12, 0.04);
+            hair.rotation.x = 0.18;
+            hair.castShadow = true;
+            cesarRig.root.add(hair);
+
+            const shades = new THREE.Mesh(new THREE.BoxGeometry(0.96, 0.24, 0.2), shadesMat);
+            shades.position.set(0, 2.62, 0.56);
+            cesarRig.root.add(shades);
+
+            const grin = new THREE.Mesh(new THREE.BoxGeometry(0.46, 0.14, 0.12), new THREE.MeshBasicMaterial({ color: '#ffffff' }));
+            grin.position.set(0, 2.26, 0.58);
+            cesarRig.root.add(grin);
+
+            scene.add(cesarRig.root);
+        }
+
+        /**
+         * Construye a Josías en 3D al otro lado de la arena con gorra y pose burlona.
+         */
+        function buildJosias3D() {
+            const skinMat = new THREE.MeshStandardMaterial({ color: '#fdba74', roughness: 0.6 });
+            const hoodieMat = new THREE.MeshStandardMaterial({ color: '#0284c7', roughness: 0.55 });
+            const pantsMat = new THREE.MeshStandardMaterial({ color: '#1e293b', roughness: 0.7 });
+            const capMat = new THREE.MeshStandardMaterial({ color: '#f59e0b', roughness: 0.5 });
+
+            josiasRig.root.position.set(3.9, 0, 1.4);
+            josiasRig.root.rotation.y = -0.52;
+
+            const lLeg = new THREE.Mesh(new THREE.BoxGeometry(0.36, 0.9, 0.38), pantsMat);
+            lLeg.position.set(-0.28, 0.45, 0);
+            lLeg.castShadow = true;
+            const rLeg = new THREE.Mesh(new THREE.BoxGeometry(0.36, 0.9, 0.38), pantsMat);
+            rLeg.position.set(0.28, 0.45, 0);
+            rLeg.castShadow = true;
+            josiasRig.root.add(lLeg, rLeg);
+
+            const torso = new THREE.Mesh(new THREE.BoxGeometry(1.06, 1.2, 0.66), hoodieMat);
+            torso.position.set(0, 1.5, 0);
+            torso.castShadow = true;
+            josiasRig.root.add(torso);
+
+            const arm = createLimb(0.3, 0.88, 0.3, '#0284c7', -0.4);
+            arm.pivot.position.set(-0.68, 1.98, 0.1);
+            arm.pivot.rotation.z = 1.15;
+            const hand = new THREE.Mesh(new THREE.SphereGeometry(0.2, 12, 12), skinMat);
+            hand.position.set(0, -0.86, 0);
+            arm.pivot.add(hand);
+            josiasRig.armRight = arm.pivot;
+            josiasRig.root.add(arm.pivot);
+
+            const head = new THREE.Mesh(new THREE.SphereGeometry(0.64, 20, 20), skinMat);
+            head.position.set(0, 2.55, 0);
+            head.castShadow = true;
+            josiasRig.root.add(head);
+
+            // Gorra característica de Josías con visera
+            const capCrown = new THREE.Mesh(new THREE.SphereGeometry(0.66, 18, 14, 0, Math.PI * 2, 0, Math.PI * 0.55), capMat);
+            capCrown.position.set(0, 2.6, 0);
+            capCrown.castShadow = true;
+            josiasRig.root.add(capCrown);
+
+            const brim = new THREE.Mesh(new THREE.BoxGeometry(0.76, 0.08, 0.52), capMat);
+            brim.position.set(0, 2.86, 0.54);
+            brim.rotation.x = 0.12;
+            josiasRig.root.add(brim);
+
+            // Ojos burlones + sonrisa
+            const eyeMat = new THREE.MeshBasicMaterial({ color: '#09090b' });
+            [-0.22, 0.22].forEach((ex) => {
+                const eye = new THREE.Mesh(new THREE.SphereGeometry(0.08, 10, 10), eyeMat);
+                eye.position.set(ex, 2.6, 0.6);
+                josiasRig.root.add(eye);
+            });
+
+            const smirk = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.12, 0.12), new THREE.MeshBasicMaterial({ color: '#fef08a' }));
+            smirk.position.set(0, 2.28, 0.58);
+            josiasRig.root.add(smirk);
+
+            scene.add(josiasRig.root);
+        }
+
+        /**
+         * ========================================================================
+         * 4. ARMAS DE SIMULACIÓN, GOLPES ILIMITADOS Y PARTÍCULAS 3D
+         * ========================================================================
+         */
+        function selectTool(toolId) {
+            currentTool = toolId;
+            document.getElementById('active-tool-label').textContent = toolNames[toolId] || toolId;
+            document.querySelectorAll('.tool-btn').forEach((btn) => {
+                if (btn.dataset.tool === toolId) {
+                    btn.classList.add('tool-active');
+                } else {
+                    btn.classList.remove('tool-active');
+                }
+            });
+        }
+
+        function selectAndFire(toolId) {
+            ensureAudio();
+            selectTool(toolId);
+            executeAttackOnTadeo(toolId, new THREE.Vector3(
+                (Math.random() - 0.5) * 0.6,
+                1.8 + (Math.random() - 0.5) * 0.9,
+                0.4
+            ));
+        }
+
+        function rapidSimBurst() {
+            ensureAudio();
+            const burstTools = ['paintball', 'laser_toy', 'dart_launcher', 'slap', 'foam_bonk'];
+            for (let i = 0; i < 5; i++) {
+                setTimeout(() => {
+                    const chosen = burstTools[i % burstTools.length];
+                    executeAttackOnTadeo(chosen, new THREE.Vector3(
+                        (Math.random() - 0.5) * 0.9,
+                        1.4 + Math.random() * 1.4,
+                        0.4
+                    ));
+                }, i * 110);
+            }
+        }
+
+        function executeAttackOnTadeo(toolId, hitPointLocal) {
+            const worldHit = hitPointLocal.clone().add(tadeoRig.pos);
+            const isSimWeapon = (toolId === 'paintball' || toolId === 'laser_toy' || toolId === 'dart_launcher');
+
+            if (isSimWeapon) {
+                spawnSimProjectile(toolId, worldHit);
+            } else {
+                applyImpactEffects(toolId, worldHit);
+            }
+        }
+
+        function spawnSimProjectile(toolId, targetPos) {
+            const startPos = new THREE.Vector3(
+                (Math.random() > 0.5 ? 1 : -1) * (3.2 + Math.random() * 2.2),
+                2.2 + (Math.random() - 0.5) * 1.2,
+                5.5
+            );
+
+            let mesh;
+            let color = '#a3e635';
+
+            if (toolId === 'paintball') {
+                const palette = ['#84cc16', '#f97316', '#ec4899', '#38bdf8', '#facc15'];
+                color = palette[Math.floor(Math.random() * palette.length)];
+                mesh = new THREE.Mesh(
+                    new THREE.SphereGeometry(0.18, 12, 12),
+                    new THREE.MeshStandardMaterial({ color, emissive: color, emissiveIntensity: 0.25 })
+                );
+            } else if (toolId === 'laser_toy') {
+                color = '#22d3ee';
+                mesh = new THREE.Mesh(
+                    new THREE.CylinderGeometry(0.08, 0.08, 0.85, 10),
+                    new THREE.MeshBasicMaterial({ color })
+                );
+                mesh.quaternion.setFromUnitVectors(
+                    new THREE.Vector3(0, 1, 0),
+                    targetPos.clone().sub(startPos).normalize()
+                );
+            } else {
+                // Lanzadardos de espuma de simulación
+                color = '#fb7185';
+                mesh = new THREE.Mesh(
+                    new THREE.CylinderGeometry(0.11, 0.11, 0.65, 10),
+                    new THREE.MeshStandardMaterial({ color })
+                );
+                mesh.quaternion.setFromUnitVectors(
+                    new THREE.Vector3(0, 1, 0),
+                    targetPos.clone().sub(startPos).normalize()
+                );
+            }
+
+            mesh.position.copy(startPos);
+            scene.add(mesh);
+            playSimSound(toolId);
+
+            projectiles3D.push({
+                mesh,
+                toolId,
+                color,
+                target: targetPos.clone(),
+                speed: toolId === 'laser_toy' ? 0.28 : 0.21
+            });
+        }
+
+        function applyImpactEffects(toolId, impactPos) {
+            // Contadores ilimitados
+            hits += 1;
+            combo += 1;
+            const ptsMap = {
+                slap: 15,
+                punch: 20,
+                foam_bonk: 25,
+                pie: 30,
+                toy_hammer: 25,
+                stomp_shake: 35,
+                paintball: 20,
+                laser_toy: 25,
+                dart_launcher: 20
+            };
+            score += (ptsMap[toolId] || 15) + Math.min(combo * 2, 40);
+            updateStatsUI();
+
+            clearTimeout(comboTimeout);
+            comboTimeout = setTimeout(() => {
+                combo = 0;
+                updateStatsUI();
+            }, 2400);
+
+            playSimSound(toolId);
+
+            // Impulso físico 3D ilimitado sobre Tadeo (siempre vuelve a la arena)
+            const dirX = (Math.random() - 0.5) * 14;
+            const dirZ = (Math.random() - 0.5) * 10;
+            const upVel = toolId === 'stomp_shake' ? 8.5 : 5.5 + Math.random() * 3.5;
+
+            tadeoRig.vel.x += dirX;
+            tadeoRig.vel.y = Math.max(tadeoRig.vel.y, upVel);
+            tadeoRig.vel.z += dirZ;
+            tadeoRig.rotVel.x += (Math.random() - 0.5) * 12;
+            tadeoRig.rotVel.z += (Math.random() - 0.5) * 14;
+            tadeoRig.squash = toolId === 'foam_bonk' || toolId === 'toy_hammer' ? 0.68 : 0.8;
+            tadeoRig.hurtTimer = 0.65;
+
+            if (toolId === 'pie') {
+                tadeoRig.pieTimer = 2.6;
+                if (tadeoRig.pieSplatter) tadeoRig.pieSplatter.visible = true;
+            }
+
+            if (cameraShakeEnabled) {
+                camOrbit.shakeIntensity = Math.min(0.45, camOrbit.shakeIntensity + 0.14);
+                const arenaBox = document.getElementById('arena-box');
+                arenaBox.classList.remove('shake-light');
+                void arenaBox.offsetWidth;
+                arenaBox.classList.add('shake-light');
+            }
+
+            // Partículas 3D según el tipo de golpe o arma de simulación
+            let pColor = '#facc15';
+            let count = 14;
+            if (toolId === 'paintball') {
+                const palette = ['#84cc16', '#f97316', '#ec4899', '#38bdf8', '#facc15'];
+                pColor = palette[Math.floor(Math.random() * palette.length)];
+                count = 18;
+            } else if (toolId === 'laser_toy') {
+                pColor = '#22d3ee';
+                count = 16;
+            } else if (toolId === 'dart_launcher') {
+                pColor = '#fb7185';
+                count = 15;
+            } else if (toolId === 'pie') {
+                pColor = '#fff1f2';
+                count = 20;
+            } else if (toolId === 'foam_bonk' || toolId === 'toy_hammer') {
+                pColor = '#fb923c';
+                count = 16;
+            }
+
+            spawnParticles3D(impactPos, pColor, count);
+
+            // Tadeo siempre dice una frase diciendo que es un fantasma
+            sayTadeoGhostPhrase();
+
+            // César o Josías se burlan con frecuencia
+            if (Math.random() < 0.45) {
+                if (Math.random() < 0.5) sayCesarPhrase();
+                else sayJosiasPhrase();
+            }
+        }
+
+        function spawnParticles3D(origin, colorHex, count) {
+            const geo = new THREE.SphereGeometry(0.11, 8, 8);
+            const mat = new THREE.MeshBasicMaterial({ color: colorHex });
+            for (let i = 0; i < count; i++) {
+                const m = new THREE.Mesh(geo, mat);
+                m.position.copy(origin);
+                scene.add(m);
+                particles3D.push({
+                    mesh: m,
+                    vel: new THREE.Vector3(
+                        (Math.random() - 0.5) * 9,
+                        2 + Math.random() * 7,
+                        (Math.random() - 0.5) * 9
+                    ),
+                    life: 0.55 + Math.random() * 0.35
+                });
+            }
+        }
+
+        function spawnFloatingSprite3D(text, bgColor, x, y, z) {
+            try {
+                const cvs = document.createElement('canvas');
+                cvs.width = 512;
+                cvs.height = 110;
+                const c = cvs.getContext('2d');
+
+                c.fillStyle = bgColor;
+                c.strokeStyle = '#09090b';
+                c.lineWidth = 8;
+                c.beginPath();
+                c.roundRect(14, 14, 484, 82, 24);
+                c.fill();
+                c.stroke();
+
+                c.fillStyle = '#09090b';
+                c.font = 'bold 30px Fredoka, sans-serif';
+                c.textAlign = 'center';
+                c.textBaseline = 'middle';
+                c.fillText(text, 256, 56, 450);
+
+                const tex = new THREE.CanvasTexture(cvs);
+                const mat = new THREE.SpriteMaterial({ map: tex, transparent: true });
+                const sprite = new THREE.Sprite(mat);
+                sprite.position.set(x, y, z);
+                sprite.scale.set(4.2, 0.92, 1);
+                scene.add(sprite);
+
+                floatingSprites.push({
+                    sprite,
+                    vy: 1.25,
+                    life: 1.35
+                });
+            } catch (e) {
+                // Ignorar si el contexto no permite canvas temporal
+            }
+        }
+
+        function updateStatsUI() {
+            document.getElementById('hits-counter').textContent = hits;
+            document.getElementById('score-counter').textContent = score;
+            document.getElementById('combo-counter').textContent = `x${combo}`;
+        }
+
+        /**
+         * ========================================================================
+         * 5. CONTROLES DE CÁMARA 3D Y RAYCASTING EN TADEO
+         * ========================================================================
+         */
+        function updateCameraTransform() {
+            const clampedPhi = Math.max(0.45, Math.min(1.42, camOrbit.phi));
+            const r = camOrbit.radius;
+            const sx = r * Math.sin(clampedPhi) * Math.sin(camOrbit.theta);
+            const sy = r * Math.cos(clampedPhi);
+            const sz = r * Math.sin(clampedPhi) * Math.cos(camOrbit.theta);
+
+            let shakeX = 0, shakeY = 0;
+            if (camOrbit.shakeIntensity > 0.005) {
+                shakeX = (Math.random() - 0.5) * camOrbit.shakeIntensity;
+                shakeY = (Math.random() - 0.5) * camOrbit.shakeIntensity;
+            }
+
+            camera.position.set(
+                camOrbit.target.x + sx + shakeX,
+                camOrbit.target.y + sy + shakeY,
+                camOrbit.target.z + sz
+            );
+            camera.lookAt(camOrbit.target);
+        }
+
+        function zoomCamera(delta) {
+            camOrbit.radius = Math.max(6.2, Math.min(18.5, camOrbit.radius + delta));
+            updateCameraTransform();
+        }
+
+        function resetCameraView() {
+            camOrbit.theta = 0.0;
+            camOrbit.phi = 1.24;
+            camOrbit.radius = 11.5;
+            updateCameraTransform();
+        }
+
+        function onPointerDown(e) {
+            ensureAudio();
+            const pt = e.touches ? e.touches[0] : e;
+            camOrbit.isDragging = true;
+            camOrbit.prevX = pt.clientX;
+            camOrbit.prevY = pt.clientY;
+            camOrbit.downX = pt.clientX;
+            camOrbit.downY = pt.clientY;
+        }
+
+        function onPointerMove(e) {
+            if (!camOrbit.isDragging) return;
+            const pt = e.touches ? e.touches[0] : e;
+            const dx = pt.clientX - camOrbit.prevX;
+            const dy = pt.clientY - camOrbit.prevY;
+            camOrbit.prevX = pt.clientX;
+            camOrbit.prevY = pt.clientY;
+
+            camOrbit.theta -= dx * 0.008;
+            camOrbit.phi -= dy * 0.006;
+            updateCameraTransform();
+        }
+
+        function onPointerUp(e) {
+            if (!camOrbit.isDragging) return;
+            camOrbit.isDragging = false;
+
+            const pt = (e.changedTouches && e.changedTouches[0]) ? e.changedTouches[0] : e;
+            const moveDist = Math.hypot(pt.clientX - camOrbit.downX, pt.clientY - camOrbit.downY);
+
+            // Si fue clic o toque rápido (no arrastre de cámara), atacar a Tadeo con raycasting
+            if (moveDist < 8) {
+                const rect = renderer.domElement.getBoundingClientRect();
+                pointerNDC.x = ((pt.clientX - rect.left) / rect.width) * 2 - 1;
+                pointerNDC.y = -((pt.clientY - rect.top) / rect.height) * 2 + 1;
+
+                raycaster.setFromCamera(pointerNDC, camera);
+                const intersects = raycaster.intersectObjects(tadeoHitMeshes, true);
+
+                if (intersects.length > 0) {
+                    const localHit = intersects[0].point.clone().sub(tadeoRig.pos);
+                    executeAttackOnTadeo(currentTool, localHit);
+                } else {
+                    // También permite atacar directamente al tocar el escenario con el arma/golpe activo
+                    executeAttackOnTadeo(currentTool, new THREE.Vector3(
+                        (Math.random() - 0.5) * 0.7,
+                        1.7 + (Math.random() - 0.5) * 0.8,
+                        0.35
+                    ));
+                }
+            }
+        }
+
+        function bindEvents() {
+            const dom = renderer.domElement;
+            dom.addEventListener('mousedown', onPointerDown);
+            window.addEventListener('mousemove', onPointerMove);
+            window.addEventListener('mouseup', onPointerUp);
+
+            dom.addEventListener('touchstart', onPointerDown, { passive: true });
+            window.addEventListener('touchmove', onPointerMove, { passive: true });
+            window.addEventListener('touchend', onPointerUp);
+
+            dom.addEventListener('wheel', (e) => {
+                e.preventDefault();
+                zoomCamera(e.deltaY > 0 ? 0.9 : -0.9);
+            }, { passive: false });
+
+            window.addEventListener('resize', () => {
+                if (!container || !renderer || !camera) return;
+                const w = container.clientWidth || 800;
+                const h = container.clientHeight || 450;
+                camera.aspect = w / h;
+                camera.updateProjectionMatrix();
+                renderer.setSize(w, h);
+            });
+        }
+
+        /**
+         * ========================================================================
+         * 6. BUCLE DE ANIMACIÓN 3D
+         * ========================================================================
+         */
+        let lastTime = 0;
+
+        function animate(now) {
+            requestAnimationFrame(animate);
+            const dt = Math.min(0.05, ((now || 0) - lastTime) / 1000 || 0.016);
+            lastTime = now || 0;
+            const elapsed = (now || 0) * 0.001;
+
+            // Física de resorte y rebote ilimitado para Tadeo
+            const kSpring = 24;
+            const damping = 0.86;
+            const ax = -tadeoRig.pos.x * kSpring + tadeoRig.vel.x * -2.2;
+            const az = -tadeoRig.pos.z * kSpring + tadeoRig.vel.z * -2.2;
+
+            tadeoRig.vel.x += ax * dt;
+            tadeoRig.vel.z += az * dt;
+            tadeoRig.vel.y -= 24 * dt;
+
+            tadeoRig.pos.x += tadeoRig.vel.x * dt;
+            tadeoRig.pos.y += tadeoRig.vel.y * dt;
+            tadeoRig.pos.z += tadeoRig.vel.z * dt;
+
+            // Mantener dentro de los límites de la arena
+            const radial = Math.hypot(tadeoRig.pos.x, tadeoRig.pos.z);
+            if (radial > 3.6) {
+                const factor = 3.6 / radial;
+                tadeoRig.pos.x *= factor;
+                tadeoRig.pos.z *= factor;
+                tadeoRig.vel.x *= -0.5;
+                tadeoRig.vel.z *= -0.5;
+            }
+
+            // Rebote en el suelo
+            if (tadeoRig.pos.y <= 0) {
+                tadeoRig.pos.y = 0;
+                if (Math.abs(tadeoRig.vel.y) > 2.0) {
+                    tadeoRig.vel.y = -tadeoRig.vel.y * 0.42;
+                    tadeoRig.squash = 0.78;
+                } else {
+                    tadeoRig.vel.y = 0;
+                }
+                tadeoRig.vel.x *= damping;
+                tadeoRig.vel.z *= damping;
+            }
+
+            tadeoRig.root.position.copy(tadeoRig.pos);
+
+            // Rotación elástica y retorno a posición neutra
+            tadeoRig.root.rotation.x += tadeoRig.rotVel.x * dt;
+            tadeoRig.root.rotation.z += tadeoRig.rotVel.z * dt;
+            tadeoRig.rotVel.x *= 0.84;
+            tadeoRig.rotVel.z *= 0.84;
+            tadeoRig.root.rotation.x *= 0.9;
+            tadeoRig.root.rotation.z *= 0.9;
+
+            // Respiración nerviosa y brazos levantados de susto
+            tadeoRig.squash += (1.0 - tadeoRig.squash) * 0.16;
+            const invSquash = 1.0 / Math.sqrt(tadeoRig.squash);
+            tadeoRig.bodyGroup.scale.set(invSquash, tadeoRig.squash, invSquash);
+
+            const tremor = Math.sin(elapsed * 28) * 0.08;
+            tadeoRig.leftArm.rotation.z = 0.95 + tremor;
+            tadeoRig.rightArm.rotation.z = -0.95 - tremor;
+            tadeoRig.headGroup.rotation.y = Math.sin(elapsed * 9) * 0.14;
+
+            if (tadeoRig.hurtTimer > 0) {
+                tadeoRig.hurtTimer -= dt;
+                if (tadeoRig.mouthMesh) tadeoRig.mouthMesh.scale.set(1.45, 1.7, 0.6);
+            } else if (tadeoRig.mouthMesh) {
+                tadeoRig.mouthMesh.scale.set(1.15, 1.35 + Math.sin(elapsed * 16) * 0.12, 0.5);
+            }
+
+            if (tadeoRig.pieTimer > 0) {
+                tadeoRig.pieTimer -= dt;
+                if (tadeoRig.pieTimer <= 0 && tadeoRig.pieSplatter) {
+                    tadeoRig.pieSplatter.visible = false;
+                }
+            }
+
+            // Animación de César y Josías burlándose
+            if (cesarRig.tauntTimer > 0) {
+                cesarRig.tauntTimer -= dt;
+                cesarRig.root.position.y = Math.abs(Math.sin(elapsed * 22)) * 0.25;
+                cesarRig.armLeft.rotation.z = -1.15 + Math.sin(elapsed * 24) * 0.28;
+            } else {
+                cesarRig.root.position.y = Math.sin(elapsed * 4) * 0.04;
+                cesarRig.armLeft.rotation.z = -1.15;
+            }
+
+            if (josiasRig.tauntTimer > 0) {
+                josiasRig.tauntTimer -= dt;
+                josiasRig.root.position.y = Math.abs(Math.sin(elapsed * 22 + 1)) * 0.25;
+                josiasRig.armRight.rotation.z = 1.15 - Math.sin(elapsed * 24) * 0.28;
+            } else {
+                josiasRig.root.position.y = Math.sin(elapsed * 4 + 1.2) * 0.04;
+                josiasRig.armRight.rotation.z = 1.15;
+            }
+
+            // Actualizar proyectiles de simulación
+            for (let i = projectiles3D.length - 1; i >= 0; i--) {
+                const p = projectiles3D[i];
+                const toTarget = p.target.clone().sub(p.mesh.position);
+                const dist = toTarget.length();
+                if (dist < 0.45) {
+                    applyImpactEffects(p.toolId, p.target);
+                    scene.remove(p.mesh);
+                    projectiles3D.splice(i, 1);
+                } else {
+                    toTarget.normalize().multiplyScalar(p.speed * 55 * dt);
+                    p.mesh.position.add(toTarget);
+                }
+            }
+
+            // Actualizar partículas 3D
+            for (let i = particles3D.length - 1; i >= 0; i--) {
+                const pt = particles3D[i];
+                pt.life -= dt;
+                if (pt.life <= 0) {
+                    scene.remove(pt.mesh);
+                    particles3D.splice(i, 1);
+                } else {
+                    pt.vel.y -= 18 * dt;
+                    pt.mesh.position.addScaledVector(pt.vel, dt);
+                    const s = Math.max(0.05, pt.life * 1.4);
+                    pt.mesh.scale.set(s, s, s);
+                }
+            }
+
+            // Actualizar sprites flotantes en 3D
+            for (let i = floatingSprites.length - 1; i >= 0; i--) {
+                const sp = floatingSprites[i];
+                sp.life -= dt;
+                if (sp.life <= 0) {
+                    scene.remove(sp.sprite);
+                    sp.sprite.material.map.dispose();
+                    sp.sprite.material.dispose();
+                    floatingSprites.splice(i, 1);
+                } else {
+                    sp.sprite.position.y += sp.vy * dt;
+                    sp.sprite.material.opacity = Math.min(1, sp.life * 1.2);
+                }
+            }
+
+            if (camOrbit.shakeIntensity > 0) {
+                camOrbit.shakeIntensity = Math.max(0, camOrbit.shakeIntensity - dt * 1.4);
+                updateCameraTransform();
+            }
+
+            renderer.render(scene, camera);
+        }
+
+        window.onload = function () {
+            initThreeScene();
+            requestAnimationFrame(animate);
+        };
+    </script>
+</body>
+</html>
